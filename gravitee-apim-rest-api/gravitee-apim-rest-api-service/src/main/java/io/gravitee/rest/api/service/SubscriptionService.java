@@ -69,6 +69,7 @@ public interface SubscriptionService {
     SubscriptionEntity pause(ExecutionContext executionContext, String subscription);
 
     SubscriptionEntity resumeConsumer(ExecutionContext executionContext, String subscriptionId);
+    SubscriptionEntity resumeFailedConsumer(ExecutionContext executionContext, String subscriptionId);
 
     SubscriptionEntity resume(ExecutionContext executionContext, String subscription);
 

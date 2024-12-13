@@ -104,6 +104,9 @@ export class ApiSubscriptionV2Service {
   resume(subscriptionId: string, apiId: string): Observable<Subscription> {
     return this.http.post<Subscription>(`${this.constants.env.v2BaseURL}/apis/${apiId}/subscriptions/${subscriptionId}/_resume`, {});
   }
+  resumeConsumerStatus(subscriptionId: string, apiId: string): Observable<Subscription> {
+    return this.http.post<Subscription>(`${this.constants.env.v2BaseURL}/apis/${apiId}/subscriptions/${subscriptionId}/_changeConsumerStatus`, {});
+  }
 
   create(apiId: string, createSubscription: CreateSubscription): Observable<Subscription> {
     return this.http.post<Subscription>(`${this.constants.env.v2BaseURL}/apis/${apiId}/subscriptions`, createSubscription);

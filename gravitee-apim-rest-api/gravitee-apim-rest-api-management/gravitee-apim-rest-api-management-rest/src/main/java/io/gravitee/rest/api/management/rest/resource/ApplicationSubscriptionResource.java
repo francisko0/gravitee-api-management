@@ -205,11 +205,8 @@ public class ApplicationSubscriptionResource extends AbstractResource {
     @ApiResponse(responseCode = "404", description = "API subscription does not exist")
     @ApiResponse(responseCode = "500", description = "Internal server error")
     @Permissions({ @Permission(value = RolePermission.APPLICATION_SUBSCRIPTION, acls = RolePermissionAction.UPDATE) })
-    public Response changeSubscriptionConsumerStatus(
-        @Parameter(required = true, schema = @Schema(allowableValues = { "STARTED", "STOPPED" })) @QueryParam(
-            "status"
-        ) SubscriptionConsumerStatus subscriptionConsumerStatus
-    ) {
+    public Response changeSubscriptionConsumerStatus() {
+        var subscriptionConsumerStatus = SubscriptionConsumerStatus.FAILURE;
         // Check subscription exists and belongs to application
         checkSubscription(subscription);
 
@@ -220,7 +217,7 @@ public class ApplicationSubscriptionResource extends AbstractResource {
         }
 
         switch (subscriptionConsumerStatus) {
-            case STARTED:
+            case STARTED, FAILURE:
                 {
                     SubscriptionEntity updatedSubscriptionEntity = subscriptionService.resumeConsumer(executionContext, subscription);
                     return Response.ok(convert(executionContext, updatedSubscriptionEntity)).build();

@@ -54,7 +54,12 @@ import io.gravitee.rest.api.service.UserService;
 import io.gravitee.rest.api.service.common.ExecutionContext;
 import io.gravitee.rest.api.service.common.GraviteeContext;
 import io.gravitee.rest.api.service.exceptions.InvalidApplicationApiKeyModeException;
+import io.gravitee.rest.api.service.exceptions.SubscriptionNotFoundException;
 import io.gravitee.rest.api.service.v4.PlanSearchService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -210,6 +215,28 @@ public class ApiSubscriptionsResource extends AbstractResource {
                 format("attachment;filename=subscriptions-%s-%s.csv", apiId, System.currentTimeMillis())
             )
             .build();
+    }
+
+    @POST
+    @Path("/{subscriptionId}/_changeConsumerStatus")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Operation(
+            summary = "Change the status of a subscription",
+            description = "User must have the APPLICATION_SUBSCRIPTION[UPDATE] permission to use this service"
+    )
+    @ApiResponse(
+            responseCode = "200",
+            description = "Subscription status successfully updated",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = Subscription.class))
+    )
+    @ApiResponse(responseCode = "400", description = "Status changes not authorized")
+    @ApiResponse(responseCode = "404", description = "API subscription does not exist")
+    @ApiResponse(responseCode = "500", description = "Internal server error")
+    @Permissions({ @Permission(value = RolePermission.APPLICATION_SUBSCRIPTION, acls = RolePermissionAction.UPDATE) })
+    public Response changeSubscriptionConsumerStatus(@PathParam("subscriptionId") String subscriptionId) {
+        final ExecutionContext executionContext = GraviteeContext.getExecutionContext();
+        SubscriptionEntity updatedSubscriptionEntity = subscriptionService.resumeFailedConsumer(executionContext, subscriptionId);
+        return Response.ok(subscriptionMapper.map(updatedSubscriptionEntity)).build();
     }
 
     @POST

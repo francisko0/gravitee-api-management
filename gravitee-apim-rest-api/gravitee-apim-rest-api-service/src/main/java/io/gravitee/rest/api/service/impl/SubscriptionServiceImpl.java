@@ -142,8 +142,10 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import jakarta.ws.rs.core.Response;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.FastDateFormat;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -987,28 +989,7 @@ public class SubscriptionServiceImpl extends AbstractService implements Subscrip
             validateConsumerStatus(subscription, genericApiModel);
 
             if (subscription.canBeStartedByConsumer()) {
-                Subscription previousSubscription = new Subscription(subscription);
-                final Date now = new Date();
-                subscription.setUpdatedAt(now);
-                subscription.setConsumerPausedAt(null);
-                subscription.setConsumerStatus(Subscription.ConsumerStatus.STARTED);
-
-                subscription = subscriptionRepository.update(subscription);
-
-                createAudit(
-                    executionContext,
-                    apiId,
-                    subscription.getApplication(),
-                    SUBSCRIPTION_RESUMED_BY_CONSUMER,
-                    subscription.getUpdatedAt(),
-                    previousSubscription,
-                    subscription
-                );
-
-                // active API Keys are automatically unpause
-                resumeApiKeys(executionContext, subscription);
-
-                return convert(subscription);
+                return updateSubscription(executionContext, subscription, apiId);
             }
 
             throw new SubscriptionNotPausedException(subscription);
@@ -1018,6 +999,67 @@ public class SubscriptionServiceImpl extends AbstractService implements Subscrip
                 ex
             );
         }
+    }
+
+    @Override
+    public SubscriptionEntity resumeFailedConsumer(final ExecutionContext executionContext, String subscriptionId) {
+        try {
+            logger.debug("Resume failed subscription by {} by consumer", subscriptionId);
+
+            Subscription subscription = subscriptionRepository
+                    .findById(subscriptionId)
+                    .orElseThrow(() -> new SubscriptionNotFoundException(subscriptionId));
+
+            Subscription.ConsumerStatus consumerStatus = subscription.getConsumerStatus();
+
+            if (consumerStatus == null) {
+                throw new SubscriptionNotFoundException(subscriptionId);
+            }
+
+            if (!Subscription.ConsumerStatus.FAILURE.equals(consumerStatus)) {
+                throw new SubscriptionNotFoundException(subscriptionId);
+            }
+
+            String apiId = subscription.getApi();
+            final GenericApiModel genericApiModel = apiTemplateService.findByIdForTemplates(executionContext, apiId);
+            checkApiDefinitionVersion(subscription, genericApiModel);
+
+            if (subscription.canBeStartedByConsumer()) {
+                return updateSubscription(executionContext, subscription, apiId);
+            }
+
+            throw new SubscriptionNotPausedException(subscription);
+        } catch (TechnicalException ex) {
+            throw new TechnicalManagementException(
+                    String.format("An error occurs while trying to resume subscription %s", subscriptionId),
+                    ex
+            );
+        }
+    }
+
+    private SubscriptionEntity updateSubscription(ExecutionContext executionContext, Subscription subscription, String apiId) throws TechnicalException {
+        Subscription previousSubscription = new Subscription(subscription);
+        final Date now = new Date();
+        subscription.setUpdatedAt(now);
+        subscription.setConsumerPausedAt(null);
+        subscription.setConsumerStatus(Subscription.ConsumerStatus.STARTED);
+
+        subscription = subscriptionRepository.update(subscription);
+
+        createAudit(
+                executionContext,
+                apiId,
+                subscription.getApplication(),
+                SUBSCRIPTION_RESUMED_BY_CONSUMER,
+                subscription.getUpdatedAt(),
+                previousSubscription,
+                subscription
+        );
+
+        // active API Keys are automatically unpause
+        resumeApiKeys(executionContext, subscription);
+
+        return convert(subscription);
     }
 
     private void resumeApiKeys(ExecutionContext executionContext, Subscription subscription) {
@@ -1032,9 +1074,13 @@ public class SubscriptionServiceImpl extends AbstractService implements Subscrip
         if (subscription.getConsumerStatus() == Subscription.ConsumerStatus.FAILURE) {
             throw new SubscriptionFailureException(subscription);
         }
+        checkApiDefinitionVersion(subscription, genericApiModel);
+    }
+
+    private static void checkApiDefinitionVersion(Subscription subscription, GenericApiModel genericApiModel) {
         if (!DefinitionVersion.V4.equals(genericApiModel.getDefinitionVersion())) {
             throw new SubscriptionConsumerStatusNotUpdatableException(
-                subscription,
+                    subscription,
                 SubscriptionConsumerStatusNotUpdatableException.Cause.DEFINITION_NOT_V4
             );
         } else {
@@ -1044,7 +1090,7 @@ public class SubscriptionServiceImpl extends AbstractService implements Subscrip
                 v4ApiModel.getListeners().stream().noneMatch(l -> l.getType().equals(ListenerType.SUBSCRIPTION))
             ) {
                 throw new SubscriptionConsumerStatusNotUpdatableException(
-                    subscription,
+                        subscription,
                     SubscriptionConsumerStatusNotUpdatableException.Cause.NO_SUBSCRIPTION_LISTENER
                 );
             }
