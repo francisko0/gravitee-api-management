@@ -1,0 +1,36 @@
+additionalArguments:
+  - "--entryPoints.kafka.address=:9092"
+  - "--entryPoints.kafka.transport.respondingTimeouts.readTimeout=360s"
+  - "--entryPoints.kafka.transport.respondingTimeouts.writeTimeout=360s"
+  - "--entryPoints.kafka.transport.respondingTimeouts.idleTimeout=0s"
+  - "--providers.kubernetesCRD"
+  - "--providers.kubernetesIngress"
+  - "--log.level=DEBUG"
+
+# -- Create a default IngressClass for Traefik see https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml#L111
+ingressClass:
+  enabled: true
+  name: traefik-apim
+
+# See https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml#L593
+ports:
+  kafka:
+    exposedPort: 9092
+    containerPort: 9092
+    expose:
+      default: true
+  web:
+    asDefault: false
+    expose:
+      default: false
+  websecure:
+    asDefault: false
+    expose:
+      default: false
+# See https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml#L738
+service:
+  enabled: true
+  type: LoadBalancer
+  annotations:
+  # Register the DNS to point to Traefik.
+  external-dns.alpha.kubernetes.io/hostname: "*.team-apim-kafka.gravitee.dev"
